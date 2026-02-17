@@ -3,14 +3,8 @@
 
 extern volatile uint16_t pwm_target;
 extern volatile uint8_t flag;
-volatile uint8_t disp_trigger = 0;
+
 void timer_init(void) {
-	//timer tim6 for opening vent (s)
-	TIM6->PSC = 1599;
-	TIM6->ARR = 199;
-	TIM6->EGR |= (1 << TIM_EGR_UG_Pos);
-	TIM6->SR = 0;
-	TIM6->DIER |= (1U << TIM_DIER_UIE_Pos);
 	//tim3_trgo for adc (we are doing this ccmr1 & ccer coz tim3 has 4 channels)
 	TIM3->PSC = 15999;
 	TIM3->ARR = 999;

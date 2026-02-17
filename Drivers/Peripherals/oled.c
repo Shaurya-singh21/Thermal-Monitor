@@ -120,7 +120,6 @@ void oled_cmd(uint8_t cmd)
 
 /* ── oled_init ───────────────────────────────────────────────────────────────
  * SSD1306 power-on and configuration sequence.
- * Copy-paste — fixed for this chip. Call once after i2c_init().
  */
 void oled_init(void)
 {

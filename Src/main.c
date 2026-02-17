@@ -13,6 +13,7 @@
 #include "oled.h"
 sys_info dp = { 0 };
 
+volatile uint8_t sys_initialized = 0;
 volatile uint16_t cnt = 0;
 volatile uint16_t pwm_target = 0;
 volatile uint8_t low_temp_read = 0;
@@ -98,11 +99,11 @@ void check_ldr_ir_proximity() {
 	float rldr = Rfix * (3.3f / vout - 1.0f);
 	float lux = pow(500000.0f / rldr, 1.428f);
 	dp.ldr = lux;
-	proximity = GPIOF->IDR & (GPIO_IDR_ID6);
-	if (dp.ldr > LDR_Threshold && !proximity)
-		dp.door = 1;
-	if (dp.ldr < LDR_Threshold && dp.door == 1)
-		dp.door = 0;
+	proximity = GPIOC->IDR & (GPIO_IDR_ID6);
+	if (!proximity && dp.ldr > LDR_Threshold) dp.door = 1; //door open
+	else if(!proximity && dp.ldr < LDR_Threshold) dp.door = 1; //door open in night
+	else dp.door = 0;
+
 }
 
 //update oled display with current parameters
@@ -111,18 +112,17 @@ void update_display(void) {
 		return;
 	char line[30];
 	if (dp.temp > optimum_temp_high)
-		snprintf(line, sizeof(line), "Temp: %.2f%cC [HIGH TEMP]", dp.temp,
+		snprintf(line, sizeof(line), "Temp: %.2f%cC [HIGH]   ", dp.temp,
 		SYM_DEGREE);
 	else if (dp.temp < optimum_temp_low)
-		snprintf(line, sizeof(line), "Temp: %.2f%cC [LOW TEMP]", dp.temp,
+		snprintf(line, sizeof(line), "Temp: %.2f%cC [LOW]     ", dp.temp,
 		SYM_DEGREE);
 	else
-		snprintf(line, sizeof(line), "Temp: %.2f%cC [OK]", dp.temp, SYM_DEGREE);
-	;
+		snprintf(line, sizeof(line), "Temp: %.2f%cC [OK]      ", dp.temp, SYM_DEGREE);
 	oled_print(0, 2, line);
 	snprintf(line, sizeof(line), "LDR: %u", buffer[1]);
 	oled_print(0, 3, line);
-	snprintf(line, sizeof(line), "Door: %s          ",dp.vent ? "OPEN" : "CLOSED");
+	snprintf(line, sizeof(line), "Door: %s          ",dp.door ? "OPEN" : "CLOSED");
 	oled_print(0, 4, line);
 	snprintf(line, sizeof(line), "Fan: %s           ", dp.fan ? "ON" : "OFF");
 	oled_print(0, 5, line);
@@ -139,7 +139,7 @@ void process_dma_data(void) {
 		;
 	memset(uart_buffer, 0, sizeof(uart_buffer));
 	snprintf(uart_buffer, sizeof(uart_buffer),
-			"%u, %.2f, %u,%.2f %u, %u , %u, %u \r\n", ++cnt, dp.temp, buffer[0],
+			"%u, %.2f, %u,%.2f ,%u, %u , %u, %u \r\n", ++cnt, dp.temp, buffer[0],
 			dp.ldr, buffer[1], dp.door, dp.fan, dp.vent);
 	send((char*) uart_buffer);
 	update_display();
@@ -151,8 +151,8 @@ void sys_stop(void) {
 	TIM3->CNT = 0;
 	//servo back to initial and blink stop
 	TIM4->DIER |= (TIM_DIER_UIE);
-	TIM2->CR1 &= ~(TIM_CR1_CEN);
 	pwm_target = 2000;
+	TIM2->CR1 &= ~(TIM_CR1_CEN);
 	TIM2->CCR1 = 0;
 	//dma_stop
 	DMA2_Stream0->CR &= ~DMA_SxCR_EN;
@@ -161,11 +161,11 @@ void sys_stop(void) {
 	DMA2->LIFCR = (DMA_LIFCR_CTCIF0 | DMA_LIFCR_CHTIF0 | DMA_LIFCR_CTEIF0
 		| DMA_LIFCR_CDMEIF0 | DMA_LIFCR_CFEIF0);
 		
-		welcome_message();
-		GPIOC->BSRR = (GPIO_BSRR_BR7);
-		sys_initialized = 0;
+	welcome_message();
+	GPIOC->BSRR = (GPIO_BSRR_BR7);
+	sys_initialized = 0;
 }
-	//start cooling process: blink led, open vent and fan
+//start cooling process: blink led, open vent and fan
 void start_cooling(void) {
 	//blink led in timer
 	TIM2->CR1 |= (TIM_CR1_CEN);
@@ -190,7 +190,7 @@ void start_heating(void) {
 	dp.vent = 1;
 }
 
-uint8_t sys_initialized = 0;
+
 int main(void) {
 	SCB->CPACR |= ((3UL << 10 * 2) | (3UL << 11 * 2));
 	config_clock();
@@ -214,7 +214,6 @@ int main(void) {
 				oled_flush();
 				TIM3->CR1 |= (TIM_CR1_CEN);
 				DMA2_Stream0->CR |= DMA_SxCR_EN;
-				TIM6->CR1 |= (TIM_CR1_CEN); 
 			}
 			if (flag & DMA_PROCESS) {
 				process_dma_data();
