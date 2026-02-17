@@ -20,6 +20,21 @@ The system is engineered for maximum CPU availability, offloading all data-heavy
 * **DMA2 (Stream 0)**: Manages **Circular ADC Acquisition**, moving raw samples directly to SRAM.
 * **DMA1 (Stream 6)**: Asynchronous I2C flushes for the OLED framebuffer (1025 bytes).
 
+## 📡 Communication Protocols
+
+### 1. Interrupt-Driven USART Telemetry
+To ensure the **Register-Level Thermal Governor** remains deterministic, the telemetry engine is strictly non-blocking. The system utilizes **USART2** (PA2) for real-time data logging.
+* **Async State Machine**: The `send()` function initiates the transfer by setting a pointer to the data string and enabling the `TXEIE` (Transmit Data Register Empty) interrupt.
+* **Non-Blocking ISR**: The `USART2_IRQHandler` handles byte-by-byte transmission. This prevents the CPU from stalling in "while-loops" during long string transfers, ensuring the cooling logic and ADC sampling are never delayed.
+* **Data Payload**: Logs 8-column timestamped CSV telemetry (Baud: 115200) including: `CNT, TEMP, RAW_TEMP, LDR, RAW_LDR, DOOR, FAN, VENT`.
+
+### 2. Hybrid DMA/Blocking I2C Interface
+The system communicates with the **SSD1306 OLED** over **I2C1** (PB6:SCL, PB7:SDA) using a dual-mode driver optimized for the STM32 bus matrix.
+* **Hardware Recovery Logic**: Implements a dedicated `i2c_reset()` routine that monitors the `BUSY` flag. If a bus hang is detected, it performs a peripheral software reset and reconfigures the `CCR` and `TRISE` registers to recover the link without a system reboot.
+* **DMA Framebuffer Flush**: For high-bandwidth 1025-byte display updates, the system utilizes **DMA1 Stream 6 (Channel 1)**. This allows the entire display buffer to be pushed to the OLED with zero CPU intervention, maintaining high frame rates while the CPU executes control logic.
+* **Deterministic Polling**: Uses low-latency blocking sends for critical initialization commands, ensuring the peripheral is correctly synchronized before the main control loop starts.
+
+* 
 
 
 ---
