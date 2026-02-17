@@ -43,9 +43,9 @@ The governor implements a **Double-Threshold Hysteresis Window** to prevent actu
 
 | State | Temp Condition | Actuator Response |
 | :--- | :--- | :--- |
-| **Idle** | $30.0^\circ\text{C} - 31.5^\circ\text{C}$ | System monitoring; All actuators standby. |
-| **Cooling** | $> 31.5^\circ\text{C}$ | Servo to **90°**, Fan PWM starts (TIM1->CCR2). |
-| **Heating** | $< 30.0^\circ\text{C}$ | Servo to **45°** for air recirculation; Blink alert (TIM2). |
+| **Idle** | $22.0^\circ\text{C} - 28^\circ\text{C}$ | System monitoring; All actuators standby. |
+| **Cooling** | $> 28^\circ\text{C}$ | Servo to **90°**, Fan PWM starts (TIM1->CCR2). |
+| **Heating** | $< 22.0^\circ\text{C}$ | Servo to **45°** for air recirculation; Blink alert (TIM2). |
 | **Breach** | LDR/IR Trigger | UART Alert + Emergency visual strobe. |
 
 
