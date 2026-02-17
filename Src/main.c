@@ -26,6 +26,18 @@ char uart_buffer[50];
 extern volatile uint8_t uart_busy;
 volatile uint8_t dma_busy = 0;
 
+//display message at start on oled
+void welcome_message(void) {
+	oled_clear();
+	oled_print(0, 0, " PARAMETERS MONITOR  ");
+	oled_print(0, 1, "---------------------");
+	oled_print(0, 2, "       WELCOME       ");
+	oled_print(0, 4, "Press Button To Start");
+	oled_print(0, 6, "          ->         ");
+	oled_flush();
+}
+
+//stopping cooling and heating process
 void stop_cooling(void) {
 	flag &= ~(COOLING_PROCESS);
 	//blink off
@@ -48,6 +60,8 @@ void stop_heat(void) {
 	TIM4->DIER |= (TIM_DIER_UIE);
 	pwm_target = 2000;
 }
+
+//check temperature and decide to start cooling or heating process
 void check_temp(void) {
 	float vout = ((buffer[0] * 3.3f) / (4095.0f));
 	float rntc = Rfix * (3.3f / vout - 1.0f);
@@ -78,6 +92,7 @@ void check_temp(void) {
 	}
 }
 
+//check ldr value and proximity to decide door status
 void check_ldr_ir_proximity() {
 	float vout = ((buffer[1] * 3.3f) / (4095.0f));
 	float rldr = Rfix * (3.3f / vout - 1.0f);
@@ -89,6 +104,8 @@ void check_ldr_ir_proximity() {
 	if (dp.ldr < LDR_Threshold && dp.door == 1)
 		dp.door = 0;
 }
+
+//update oled display with current parameters
 void update_display(void) {
 	if (oled_is_busy())
 		return;
@@ -113,6 +130,8 @@ void update_display(void) {
 	oled_print(0, 6, line);
 	oled_flush();
 }
+
+//process data received from dma, check parameters, send via uart and update oled display
 void process_dma_data(void) {
 	check_temp();
 	check_ldr_ir_proximity();
@@ -125,38 +144,28 @@ void process_dma_data(void) {
 	send((char*) uart_buffer);
 	update_display();
 }
-
-void welcome_message(void) {
-	oled_clear();
-	oled_print(0, 0, " PARAMETERS MONITOR  ");
-	oled_print(0, 1, "---------------------");
-	oled_print(0, 2, "       WELCOME       ");
-	oled_print(0, 4, "Press Button To Start");
-	oled_print(0, 6, "          ->         ");
-	oled_flush();
-}
-
-uint8_t sys_initialized = 0;
+//stop all processes and reset system to initial state
 void sys_stop(void) {
 	//tim3 stop
 	TIM3->CR1 &= ~(TIM_CR1_CEN);
 	TIM3->CNT = 0;
-	//servo back to initial
+	//servo back to initial and blink stop
 	TIM4->DIER |= (TIM_DIER_UIE);
+	TIM2->CR1 &= ~(TIM_CR1_CEN);
 	pwm_target = 2000;
 	TIM2->CCR1 = 0;
 	//dma_stop
 	DMA2_Stream0->CR &= ~DMA_SxCR_EN;
 	while (DMA2_Stream0->CR & DMA_SxCR_EN)
-		;
+	;
 	DMA2->LIFCR = (DMA_LIFCR_CTCIF0 | DMA_LIFCR_CHTIF0 | DMA_LIFCR_CTEIF0
-			| DMA_LIFCR_CDMEIF0 | DMA_LIFCR_CFEIF0);
-
-	welcome_message();
-	GPIOC->BSRR = (GPIO_BSRR_BR7);
-	sys_initialized = 0;
+		| DMA_LIFCR_CDMEIF0 | DMA_LIFCR_CFEIF0);
+		
+		welcome_message();
+		GPIOC->BSRR = (GPIO_BSRR_BR7);
+		sys_initialized = 0;
 }
-
+	//start cooling process: blink led, open vent and fan
 void start_cooling(void) {
 	//blink led in timer
 	TIM2->CR1 |= (TIM_CR1_CEN);
@@ -170,7 +179,7 @@ void start_cooling(void) {
 	TIM1->CR1 |= (TIM_CR1_CEN);
 	dp.fan = 1;
 }
-
+	
 void start_heating(void) {
 	//blink led in timer
 	TIM2->CR1 |= (TIM_CR1_CEN);
@@ -181,6 +190,7 @@ void start_heating(void) {
 	dp.vent = 1;
 }
 
+uint8_t sys_initialized = 0;
 int main(void) {
 	SCB->CPACR |= ((3UL << 10 * 2) | (3UL << 11 * 2));
 	config_clock();
@@ -204,7 +214,7 @@ int main(void) {
 				oled_flush();
 				TIM3->CR1 |= (TIM_CR1_CEN);
 				DMA2_Stream0->CR |= DMA_SxCR_EN;
-				TIM6->CR1 |= (TIM_CR1_CEN);
+				TIM6->CR1 |= (TIM_CR1_CEN); 
 			}
 			if (flag & DMA_PROCESS) {
 				process_dma_data();

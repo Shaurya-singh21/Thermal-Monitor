@@ -30,9 +30,9 @@ typedef struct{
 
 #define Rfix 10000.0f
 
-#define min_temp 17.0f
-#define optimum_temp_low 22.0f
+//you can adjust these values based on your specific requirements
+#define optimum_temp_low 22.0f 
 #define optimum_temp_high 28.0f
-#define max_temp 32.0f
+
 
 #endif
